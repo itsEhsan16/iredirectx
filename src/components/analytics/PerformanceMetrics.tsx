@@ -24,21 +24,26 @@ const PerformanceMetrics = () => {
   const performanceData = data ? {
     redirectSpeed: {
       p50: parseInt(data.redirectMetrics[0].value as string),
-      p95: 180,
-      p99: 250,
+      p95: Math.round(parseInt(data.redirectMetrics[0].value as string) * 1.5),
+      p99: Math.round(parseInt(data.redirectMetrics[0].value as string) * 2),
       trend: data.redirectMetrics[0].change,
     },
     cacheHitRate: parseInt(data.redirectMetrics[1].value as string),
     databasePerformance: {
       queryTime: parseInt(data.databaseMetrics[0].value as string),
-      queryCount: 1250,
+      queryCount: data.databaseMetrics[1].value as number, // Real query count from hook
       trend: data.databaseMetrics[0].change,
+      cacheHitRatio: data.databaseMetrics[2].value as string, // Real cache hit ratio
+      activeLinks: data.databaseMetrics[3].value as number, // Real active links count
     },
     apiPerformance: {
       responseTime: parseInt(data.apiMetrics[0].value as string),
-      requestCount: 3500,
+      requestCount: data.apiMetrics[1].value as number, // Real click count from hook
+      uniqueVisitors: data.apiMetrics[2].value as number, // Real unique visitors
+      avgDailyTraffic: data.apiMetrics[3].value as number, // Real avg daily traffic
       trend: data.apiMetrics[0].change,
-    }
+    },
+    systemMetrics: data.systemMetrics // Pass through all system metrics
   } : null;
 
   // Redirect performance metrics
@@ -85,60 +90,41 @@ const PerformanceMetrics = () => {
       status: 'positive'
     },
     {
-      name: 'Query Count',
+      name: 'Total Queries',
       value: isLoading ? '...' : performanceData?.databasePerformance.queryCount.toLocaleString(),
       icon: <BarChart className="h-4 w-4" />,
-      description: 'Total number of database queries',
+      description: 'Total database queries (last 7 days)',
       status: 'neutral'
     },
     {
-      name: 'Index Usage',
-      value: isLoading ? '...' : '98%',
+      name: 'Cache Hit Ratio',
+      value: isLoading ? '...' : performanceData?.databasePerformance.cacheHitRatio,
       icon: <Database className="h-4 w-4" />,
-      description: 'Percentage of queries using indexes',
+      description: 'Database query cache efficiency',
       status: 'positive'
     },
     {
-      name: 'Cache Efficiency',
-      value: isLoading ? '...' : '85%',
+      name: 'Active Links',
+      value: isLoading ? '...' : performanceData?.databasePerformance.activeLinks?.toLocaleString(),
       icon: <Zap className="h-4 w-4" />,
-      description: 'Database query cache efficiency',
+      description: 'Number of active links',
       status: 'neutral'
     },
   ];
 
-  // API performance metrics
-  const apiMetrics: PerformanceMetric[] = [
-    {
-      name: 'Avg. Response Time',
-      value: isLoading ? '...' : `${performanceData?.apiPerformance.responseTime}ms`,
-      change: isLoading ? '' : `${performanceData?.apiPerformance.trend}%`,
-      icon: <Server className="h-4 w-4" />,
-      description: 'Average API response time',
-      status: 'positive'
-    },
-    {
-      name: 'Request Count',
-      value: isLoading ? '...' : performanceData?.apiPerformance.requestCount.toLocaleString(),
-      icon: <BarChart className="h-4 w-4" />,
-      description: 'Total number of API requests',
-      status: 'neutral'
-    },
-    {
-      name: 'Success Rate',
-      value: isLoading ? '...' : '99.8%',
-      icon: <Server className="h-4 w-4" />,
-      description: 'Percentage of successful API requests',
-      status: 'positive'
-    },
-    {
-      name: 'Error Rate',
-      value: isLoading ? '...' : '0.2%',
-      icon: <Server className="h-4 w-4" />,
-      description: 'Percentage of failed API requests',
-      status: 'neutral'
-    },
-  ];
+  // API performance metrics - now using real API metrics from the hook
+  const apiMetrics: PerformanceMetric[] = data?.apiMetrics ? data.apiMetrics.map(metric => ({
+    name: metric.label,
+    value: isLoading ? '...' : metric.value.toString(),
+    change: metric.change ? `${metric.change > 0 ? '+' : ''}${metric.change}%` : '',
+    icon: metric.label.includes('Response') ? <Server className="h-4 w-4" /> :
+          metric.label.includes('Success') ? <Zap className="h-4 w-4" /> :
+          metric.label.includes('Error') ? <Activity className="h-4 w-4" /> :
+          <TrendingUp className="h-4 w-4" />,
+    description: metric.description || '',
+    status: metric.change && metric.change > 0 ? 'positive' : 
+            metric.change && metric.change < 0 ? 'negative' : 'neutral'
+  })) : [];
 
   const renderMetricCards = (metrics: PerformanceMetric[]) => {
     return (

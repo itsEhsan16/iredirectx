@@ -1,3 +1,11 @@
+# iRedirectX - Smart URL Shortener & Link Management Platform
+
+## 🚀 Quick Deployment to Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/iredirectx)
+
+For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md)
+
 # Welcome to your Lovable project
 
 ## Project info

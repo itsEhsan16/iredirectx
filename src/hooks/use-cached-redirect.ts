@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import cache from '@/utils/cache';
+import { getDeviceInfo } from '@/utils/device-detection';
 
 interface LinkData {
   id: string;
@@ -63,14 +64,10 @@ export function useCachedRedirect(slug: string | undefined, cacheTtl: number = 3
         // If not in cache, fetch from API
         console.log('Fetching redirect data for:', slug);
         
-        // Use a single query to fetch both link and its rules in one database call
-        // This reduces the number of round trips to the database
+        // Fetch link data
         const { data: linkData, error: linkError } = await supabase
           .from('links')
-          .select(`
-            *,
-            redirect_rules:redirect_rules(*)  
-          `)
+          .select('*')
           .eq('slug', slug)
           .eq('active', true)
           .single();
@@ -81,23 +78,25 @@ export function useCachedRedirect(slug: string | undefined, cacheTtl: number = 3
           return;
         }
         
-        // Extract and sort the redirect rules
-        const rulesData = linkData.redirect_rules ? 
-          [...linkData.redirect_rules].sort((a, b) => a.priority - b.priority) : 
-          [];
-        
-        // Remove the nested redirect_rules from linkData to maintain the expected structure
-        const { redirect_rules, ...linkDataWithoutRules } = linkData;
-        
-        // No need to check for rulesError as we're using a single query now
+        // Fetch redirect rules for this link
+        const { data: rulesData, error: rulesError } = await supabase
+          .from('redirect_rules')
+          .select('*')
+          .eq('link_id', linkData.id)
+          .eq('active', true)
+          .order('priority', { ascending: true });
+
+        if (rulesError) {
+          console.error('Error fetching redirect rules:', rulesError);
+        }
 
         // Store in state
-        setLink(linkDataWithoutRules);
+        setLink(linkData);
         setRedirectRules(rulesData || []);
         
         // Store in cache
         cache.set(cacheKey, {
-          link: linkDataWithoutRules,
+          link: linkData,
           redirectRules: rulesData || []
         }, cacheTtl);
         
@@ -112,16 +111,35 @@ export function useCachedRedirect(slug: string | undefined, cacheTtl: number = 3
     fetchRedirectData();
   }, [slug, cacheTtl]);
 
-  // Function to track clicks
+  // Function to track clicks with enhanced analytics
   const trackClick = async (linkId: string) => {
     try {
-      // Track the click - the database trigger will automatically increment the click_count
+      // Get device information from user agent
+      const deviceInfo = getDeviceInfo(navigator.userAgent);
+      
+      // Parse UTM parameters from URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const utmParams = {
+        utm_source: urlParams.get('utm_source'),
+        utm_medium: urlParams.get('utm_medium'),
+        utm_campaign: urlParams.get('utm_campaign'),
+        utm_term: urlParams.get('utm_term'),
+        utm_content: urlParams.get('utm_content'),
+      };
+      
+      // Track the click with enhanced data
       const { error: clickError } = await supabase
         .from('link_clicks')
         .insert({
           link_id: linkId,
           referrer: document.referrer || null,
           user_agent: navigator.userAgent || null,
+          device_type: deviceInfo.type,
+          browser: deviceInfo.browser,
+          browser_version: deviceInfo.browserVersion,
+          os: deviceInfo.os,
+          os_version: deviceInfo.osVersion,
+          ...utmParams,
         });
 
       if (clickError) {
@@ -129,7 +147,6 @@ export function useCachedRedirect(slug: string | undefined, cacheTtl: number = 3
       }
 
       // Note: click_count is automatically incremented by the database trigger
-      // No manual increment needed
     } catch (error) {
       console.error('Error in trackClick:', error);
     }

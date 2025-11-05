@@ -16,6 +16,9 @@ interface ClickData {
   id: string;
   link_id: string;
   user_agent: string | null;
+  device_type?: string | null;
+  browser?: string | null;
+  os?: string | null;
   // Other fields may be present
 }
 
@@ -39,56 +42,73 @@ const DeviceAnalyticsChart: React.FC<DeviceAnalyticsChartProps> = ({
   }, []);
   // Process data to show device and browser information
   const processData = () => {
-    const deviceCounts: Record<string, number> = {};
+    const deviceTypeCounts: Record<string, number> = {};
     const browserCounts: Record<string, number> = {};
+    const osCounts: Record<string, number> = {};
     
     clickData.forEach(click => {
-      if (!click.user_agent) return;
-      
-      // Simple device detection
-      let device = 'Unknown';
-      if (click.user_agent.includes('Android')) {
-        device = 'Android';
-      } else if (click.user_agent.includes('iPhone') || click.user_agent.includes('iPad') || click.user_agent.includes('iPod')) {
-        device = 'iOS';
-      } else if (click.user_agent.includes('Windows')) {
-        device = 'Windows';
-      } else if (click.user_agent.includes('Mac')) {
-        device = 'Mac';
-      } else if (click.user_agent.includes('Linux')) {
-        device = 'Linux';
+      // Use actual device_type field if available, fall back to parsing user_agent
+      if (click.device_type) {
+        const deviceName = click.device_type === 'mobile' ? 'Mobile' :
+                          click.device_type === 'desktop' ? 'Desktop' :
+                          click.device_type === 'tablet' ? 'Tablet' :
+                          click.device_type === 'tv' ? 'TV/Console' : 'Other';
+        deviceTypeCounts[deviceName] = (deviceTypeCounts[deviceName] || 0) + 1;
+      } else if (click.user_agent) {
+        // Fallback to user_agent parsing if device_type not available
+        let device = 'Unknown';
+        const ua = click.user_agent.toLowerCase();
+        if (ua.includes('mobile') || ua.includes('iphone') || ua.includes('android')) {
+          device = 'Mobile';
+        } else if (ua.includes('tablet') || ua.includes('ipad')) {
+          device = 'Tablet';
+        } else if (ua.includes('windows') || ua.includes('mac') || ua.includes('linux')) {
+          device = 'Desktop';
+        }
+        deviceTypeCounts[device] = (deviceTypeCounts[device] || 0) + 1;
       }
       
-      // Simple browser detection
-      let browser = 'Unknown';
-      if (click.user_agent.includes('Chrome') && !click.user_agent.includes('Edg')) {
-        browser = 'Chrome';
-      } else if (click.user_agent.includes('Firefox')) {
-        browser = 'Firefox';
-      } else if (click.user_agent.includes('Safari') && !click.user_agent.includes('Chrome')) {
-        browser = 'Safari';
-      } else if (click.user_agent.includes('Edg')) {
-        browser = 'Edge';
-      } else if (click.user_agent.includes('MSIE') || click.user_agent.includes('Trident/')) {
-        browser = 'Internet Explorer';
+      // Use actual browser field if available
+      if (click.browser) {
+        browserCounts[click.browser] = (browserCounts[click.browser] || 0) + 1;
+      } else if (click.user_agent) {
+        // Fallback to user_agent parsing if browser not available
+        let browser = 'Unknown';
+        if (click.user_agent.includes('Chrome') && !click.user_agent.includes('Edg')) {
+          browser = 'Chrome';
+        } else if (click.user_agent.includes('Firefox')) {
+          browser = 'Firefox';
+        } else if (click.user_agent.includes('Safari') && !click.user_agent.includes('Chrome')) {
+          browser = 'Safari';
+        } else if (click.user_agent.includes('Edg')) {
+          browser = 'Edge';
+        }
+        browserCounts[browser] = (browserCounts[browser] || 0) + 1;
       }
       
-      deviceCounts[device] = (deviceCounts[device] || 0) + 1;
-      browserCounts[browser] = (browserCounts[browser] || 0) + 1;
+      // Use actual OS field if available
+      if (click.os) {
+        osCounts[click.os] = (osCounts[click.os] || 0) + 1;
+      }
     });
     
     // Convert to array format for Recharts
-    const deviceData = Object.entries(deviceCounts)
+    const deviceData = Object.entries(deviceTypeCounts)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
       
     const browserData = Object.entries(browserCounts)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
+      
+    const osData = Object.entries(osCounts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
     
     return {
-      devices: deviceData.slice(0, 5), // Top 5 devices
-      browsers: browserData.slice(0, 5) // Top 5 browsers
+      devices: deviceData.slice(0, 5), // Top 5 device types
+      browsers: browserData.slice(0, 5), // Top 5 browsers
+      os: osData.slice(0, 5) // Top 5 operating systems
     };
   };
 

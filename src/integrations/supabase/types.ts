@@ -10,34 +10,73 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.4"
+    PostgrestVersion: "13.0.5"
   }
   public: {
     Tables: {
       link_clicks: {
         Row: {
+          browser: string | null
+          browser_version: string | null
+          city: string | null
           clicked_at: string
+          country: string | null
+          device_type: string | null
           id: string
           ip_address: unknown | null
           link_id: string
+          os: string | null
+          os_version: string | null
           referrer: string | null
+          region: string | null
           user_agent: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
         }
         Insert: {
+          browser?: string | null
+          browser_version?: string | null
+          city?: string | null
           clicked_at?: string
+          country?: string | null
+          device_type?: string | null
           id?: string
           ip_address?: unknown | null
           link_id: string
+          os?: string | null
+          os_version?: string | null
           referrer?: string | null
+          region?: string | null
           user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Update: {
+          browser?: string | null
+          browser_version?: string | null
+          city?: string | null
           clicked_at?: string
+          country?: string | null
+          device_type?: string | null
           id?: string
           ip_address?: unknown | null
           link_id?: string
+          os?: string | null
+          os_version?: string | null
           referrer?: string | null
+          region?: string | null
           user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Relationships: [
           {
@@ -56,8 +95,10 @@ export type Database = {
           created_at: string
           description: string | null
           destination_url: string
+          expiration_date: string | null
           id: string
           slug: string
+          tags: string[] | null
           title: string | null
           updated_at: string
           user_id: string
@@ -68,8 +109,10 @@ export type Database = {
           created_at?: string
           description?: string | null
           destination_url: string
+          expiration_date?: string | null
           id?: string
           slug: string
+          tags?: string[] | null
           title?: string | null
           updated_at?: string
           user_id: string
@@ -80,8 +123,10 @@ export type Database = {
           created_at?: string
           description?: string | null
           destination_url?: string
+          expiration_date?: string | null
           id?: string
           slug?: string
+          tags?: string[] | null
           title?: string | null
           updated_at?: string
           user_id?: string
@@ -114,6 +159,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      redirect_rules: {
+        Row: {
+          active: boolean | null
+          condition_type: string
+          condition_value: string | null
+          created_at: string | null
+          id: string
+          link_id: string
+          priority: number
+          redirect_url: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          condition_type: string
+          condition_value?: string | null
+          created_at?: string | null
+          id?: string
+          link_id: string
+          priority?: number
+          redirect_url: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          condition_type?: string
+          condition_value?: string | null
+          created_at?: string | null
+          id?: string
+          link_id?: string
+          priority?: number
+          redirect_url?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "redirect_rules_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "links"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

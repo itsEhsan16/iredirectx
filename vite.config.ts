@@ -17,12 +17,14 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor': ['react', 'react-dom', 'react-router-dom'],
-          'ui': ['@/components/ui'],
-          'analytics': ['@/components/analytics'],
-          'dashboard': ['@/pages/Dashboard', '@/pages/CreateLink', '@/pages/ManageLinks'],
-          'landing': ['@/pages/Index', '@/components/HeroSection', '@/components/Features', '@/components/Testimonials', '@/components/Pricing'],
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('react')) return 'vendor-react';
+            if (id.includes('@radix-ui')) return 'vendor-ui';
+            if (id.includes('@supabase')) return 'vendor-supabase';
+            if (id.includes('@tanstack')) return 'vendor-tanstack';
+            return 'vendor';
+          }
         },
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',

@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const DashboardAnalytics = () => {
   const { user } = useAuth();
   const [timeRange, setTimeRange] = useState('30days');
+  const [selectedLinkId, setSelectedLinkId] = useState<string>('all');
 
   // Calculate date range based on selection
   const dateRange = useMemo(() => {
@@ -64,7 +65,7 @@ const DashboardAnalytics = () => {
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000, // 5 minutes cache
-    cacheTime: 10 * 60 * 1000, // 10 minutes cache
+    gcTime: 10 * 60 * 1000, // 10 minutes cache
   });
   
   // Add real-time capabilities to the links query
@@ -74,13 +75,15 @@ const DashboardAnalytics = () => {
     filterValue: user?.id,
   });
 
-  // Fetch all clicks for the user's links with time range filter
+  // Fetch all clicks for the user's links with time range and link filter
   const clicksQuery = useQuery({
-    queryKey: ['dashboard-clicks', user?.id, timeRange],
+    queryKey: ['dashboard-clicks', user?.id, timeRange, selectedLinkId],
     queryFn: async () => {
       if (!user || !links || links.length === 0) return [];
       
-      const linkIds = links.map(link => link.id);
+      const linkIds = selectedLinkId === 'all' 
+        ? links.map(link => link.id)
+        : [selectedLinkId];
       const { startDate } = dateRange;
       
       const { data, error } = await supabase
@@ -95,7 +98,7 @@ const DashboardAnalytics = () => {
     },
     enabled: !!links && links.length > 0,
     staleTime: 5 * 60 * 1000, // 5 minutes cache
-    cacheTime: 10 * 60 * 1000, // 10 minutes cache
+    gcTime: 10 * 60 * 1000, // 10 minutes cache
   });
   
   // Add real-time capabilities to the clicks query
@@ -120,14 +123,14 @@ const DashboardAnalytics = () => {
     if (!links || !clicks) return null;
     
     // Count clicks per link
-    const clicksPerLink = {};
+    const clicksPerLink: Record<string, number> = {};
     clicks.forEach(click => {
       clicksPerLink[click.link_id] = (clicksPerLink[click.link_id] || 0) + 1;
     });
     
     // Find link with most clicks
     let maxClicks = 0;
-    let topLinkId = null;
+    let topLinkId: string | null = null;
     
     Object.entries(clicksPerLink).forEach(([linkId, count]) => {
       if (count > maxClicks) {
@@ -164,26 +167,153 @@ const DashboardAnalytics = () => {
     if (!clicks || clicks.length === 0) return 0;
     
     const { startDate, endDate } = dateRange;
-    const daysDiff = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)));
+    const daysDiff = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
     
     return (clicks.length / daysDiff).toFixed(1);
   }, [clicks, dateRange]);
 
+  // Calculate link performance data for selected link
+  const linkPerformanceData = useMemo(() => {
+    if (!links || !clicks) return null;
+    
+    const selectedLink = selectedLinkId === 'all' 
+      ? topLink 
+      : links.find(l => l.id === selectedLinkId);
+      
+    if (!selectedLink) return null;
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const twoWeeksAgo = new Date(today);
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    
+    const filteredClicks = selectedLinkId === 'all' 
+      ? clicks 
+      : clicks.filter(c => c.link_id === selectedLinkId);
+    
+    const clicksToday = filteredClicks.filter(c => new Date(c.clicked_at) >= today).length;
+    const clicksYesterday = filteredClicks.filter(c => {
+      const clickDate = new Date(c.clicked_at);
+      return clickDate >= yesterday && clickDate < today;
+    }).length;
+    const clicksThisWeek = filteredClicks.filter(c => new Date(c.clicked_at) >= weekAgo).length;
+    const clicksLastWeek = filteredClicks.filter(c => {
+      const clickDate = new Date(c.clicked_at);
+      return clickDate >= twoWeeksAgo && clickDate < weekAgo;
+    }).length;
+    
+    // Calculate conversion rate (simplified - clicks / unique visitors)
+    const uniqueVisitorsThisWeek = new Set(filteredClicks.filter(c => new Date(c.clicked_at) >= weekAgo).map(c => c.ip_address)).size;
+    const uniqueVisitorsLastWeek = new Set(filteredClicks.filter(c => {
+      const clickDate = new Date(c.clicked_at);
+      return clickDate >= twoWeeksAgo && clickDate < weekAgo;
+    }).map(c => c.ip_address)).size;
+    
+    const conversionRate = uniqueVisitorsThisWeek > 0 ? Math.round((clicksThisWeek / uniqueVisitorsThisWeek) * 100) : 0;
+    const previousConversionRate = uniqueVisitorsLastWeek > 0 ? Math.round((clicksLastWeek / uniqueVisitorsLastWeek) * 100) : 0;
+    
+    return {
+      linkId: selectedLink.id,
+      shortCode: selectedLink.slug,
+      destination: selectedLink.destination_url,
+      clicksToday,
+      clicksYesterday,
+      clicksThisWeek,
+      clicksLastWeek,
+      conversionRate,
+      previousConversionRate
+    };
+  }, [links, clicks, selectedLinkId, topLink]);
+
+  // Calculate tag analytics
+  const tagAnalytics = useMemo(() => {
+    if (!links || !clicks) return [];
+    
+    const tagCounts: Record<string, number> = {};
+    const filteredLinks = selectedLinkId === 'all' 
+      ? links 
+      : links.filter(l => l.id === selectedLinkId);
+    
+    filteredLinks.forEach(link => {
+      if (link.tags && link.tags.length > 0) {
+        const linkClicks = clicks.filter(c => c.link_id === link.id).length;
+        link.tags.forEach(tag => {
+          tagCounts[tag] = (tagCounts[tag] || 0) + linkClicks;
+        });
+      }
+    });
+    
+    const totalTagClicks = Object.values(tagCounts).reduce((sum, count) => sum + count, 0);
+    
+    return Object.entries(tagCounts)
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage: totalTagClicks > 0 ? Math.round((count / totalTagClicks) * 100) : 0
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5); // Top 5 tags
+  }, [links, clicks, selectedLinkId]);
+
+  // Calculate device analytics from real data
+  const deviceAnalytics = useMemo(() => {
+    if (!clicks || clicks.length === 0) return [];
+    
+    const deviceCounts: Record<string, number> = {};
+    const filteredClicks = selectedLinkId === 'all' 
+      ? clicks 
+      : clicks.filter(c => c.link_id === selectedLinkId);
+    
+    filteredClicks.forEach(click => {
+      const deviceType = click.device_type || 'other';
+      deviceCounts[deviceType] = (deviceCounts[deviceType] || 0) + 1;
+    });
+    
+    const totalClicks = filteredClicks.length;
+    
+    return Object.entries(deviceCounts)
+      .map(([type, count]) => ({
+        type: type as 'mobile' | 'desktop' | 'tablet' | 'tv' | 'other',
+        count,
+        percentage: totalClicks > 0 ? Math.round((count / totalClicks) * 100) : 0
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [clicks, selectedLinkId]);
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-lg font-medium">Analytics Overview</h2>
-        <Select value={timeRange} onValueChange={setTimeRange}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select time range" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7days">Last 7 days</SelectItem>
-            <SelectItem value="14days">Last 14 days</SelectItem>
-            <SelectItem value="30days">Last 30 days</SelectItem>
-            <SelectItem value="90days">Last 90 days</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Select value={selectedLinkId} onValueChange={setSelectedLinkId}>
+            <SelectTrigger className="w-full sm:w-[200px]">
+              <SelectValue placeholder="Select link" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Links</SelectItem>
+              {links?.map((link) => (
+                <SelectItem key={link.id} value={link.id}>
+                  /{link.slug} {link.title && `- ${link.title}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={timeRange} onValueChange={setTimeRange}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="Select time range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7days">Last 7 days</SelectItem>
+              <SelectItem value="14days">Last 14 days</SelectItem>
+              <SelectItem value="30days">Last 30 days</SelectItem>
+              <SelectItem value="90days">Last 90 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -486,39 +616,19 @@ const DashboardAnalytics = () => {
         
         <LinkPerformanceCard 
           isLoading={isLoading}
-          linkData={{
-            linkId: 'link-1',
-            shortCode: 'promo2023',
-            destination: 'https://example.com/special-promotion',
-            clicksToday: 145,
-            clicksYesterday: 132,
-            clicksThisWeek: 876,
-            clicksLastWeek: 743,
-            conversionRate: 42,
-            previousConversionRate: 38
-          }}
+          linkData={linkPerformanceData}
         />
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
         <TagAnalyticsCard 
           isLoading={isLoading}
-          tags={[
-            { name: 'promo', count: 1245, percentage: 42 },
-            { name: 'social', count: 876, percentage: 30 },
-            { name: 'email', count: 532, percentage: 18 },
-            { name: 'blog', count: 298, percentage: 10 }
-          ]}
+          tags={tagAnalytics}
         />
         
         <DeviceAnalyticsCard 
           isLoading={isLoading}
-          devices={[
-            { type: 'mobile', count: 3245, percentage: 58 },
-            { type: 'desktop', count: 1876, percentage: 32 },
-            { type: 'tablet', count: 432, percentage: 8 },
-            { type: 'tv', count: 98, percentage: 2 }
-          ]}
+          devices={deviceAnalytics}
         />
       </div>
       
