@@ -180,18 +180,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Support
 
-For support, email support@iredirectx.com or open an issue in the GitHub repository.
+For support, email mdehsan2737@gmail.com or open an issue in the GitHub repository.
 
-## 🗺️ Roadmap
-
-- [ ] Multi-language support
-- [ ] Advanced API rate limiting
-- [ ] Webhook integrations
-- [ ] A/B testing for links
-- [ ] Browser extensions
-- [ ] Mobile applications (iOS/Android)
-- [ ] White-label solutions
-- [ ] Advanced team permissions
 
 ---
 
