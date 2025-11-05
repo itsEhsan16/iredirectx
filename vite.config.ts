@@ -15,26 +15,42 @@ export default defineConfig(({ mode }) => ({
     componentTagger(),
   ].filter(Boolean),
   build: {
+    target: 'es2020',
+    minify: 'esbuild',
+    cssMinify: true,
+    sourcemap: false,
+    reportCompressedSize: false,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks: (id) => {
+          // Keep React and ReactDOM together to avoid context errors
           if (id.includes('node_modules')) {
-            if (id.includes('react')) return 'vendor-react';
-            if (id.includes('@radix-ui')) return 'vendor-ui';
-            if (id.includes('@supabase')) return 'vendor-supabase';
-            if (id.includes('@tanstack')) return 'vendor-tanstack';
-            return 'vendor';
+            if (id.includes('react-dom')) {
+              return 'react-vendor';
+            }
+            if (id.includes('react') && !id.includes('react-dom')) {
+              return 'react-vendor';
+            }
+            if (id.includes('@radix-ui')) {
+              return 'ui-vendor';
+            }
+            if (id.includes('@supabase')) {
+              return 'supabase-vendor';
+            }
+            if (id.includes('@tanstack')) {
+              return 'query-vendor';
+            }
+            if (id.includes('recharts')) {
+              return 'charts-vendor';
+            }
           }
         },
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
+        entryFileNames: 'assets/[name]-[hash].js',
       },
     },
-    target: 'esnext',
-    minify: 'esbuild',
-    cssMinify: true,
-    sourcemap: mode === 'development',
-    reportCompressedSize: false,
   },
   resolve: {
     alias: {
