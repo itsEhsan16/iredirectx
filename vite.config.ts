@@ -26,24 +26,27 @@ export default defineConfig(({ mode }) => ({
         manualChunks: (id) => {
           // Keep React and ReactDOM together to avoid context errors
           if (id.includes('node_modules')) {
-            if (id.includes('react-dom')) {
+            // Bundle React, ReactDOM and React Router together
+            if (id.includes('react-dom') || id.includes('react-router')) {
               return 'react-vendor';
             }
-            if (id.includes('react') && !id.includes('react-dom')) {
+            if (id.includes('react') && !id.includes('react-dom') && !id.includes('recharts')) {
               return 'react-vendor';
             }
+            // Keep Radix UI separate
             if (id.includes('@radix-ui')) {
               return 'ui-vendor';
             }
+            // Keep Supabase separate
             if (id.includes('@supabase')) {
               return 'supabase-vendor';
             }
+            // Keep React Query separate
             if (id.includes('@tanstack')) {
               return 'query-vendor';
             }
-            if (id.includes('recharts')) {
-              return 'charts-vendor';
-            }
+            // Don't separate recharts to avoid initialization issues
+            // Let it be bundled with other vendors
           }
         },
         chunkFileNames: 'assets/[name]-[hash].js',
